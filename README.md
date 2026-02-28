@@ -19,7 +19,7 @@ If you are developing a production application, we recommend using TypeScript wi
  Basic Details Team Name: VirtualX 
  Team Members Member 1: Megha Prakash - College of engineering Chengannur 
  Member 2: Madhavi Dinesh- College of Engineering Chengannur 
- Hosted Project Link http://localhost:5174/
+ Hosted Project Link:  https://thh-4-0.onrender.com
  The Problem Statement:
 Hostel students often miss important academic dates, lack a safe space to vent, and have no structured system for food feedback or complaint tracking. There is no centralized platform built specifically for managing hostel student life efficiently.
 The Solution:
