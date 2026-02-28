@@ -4,6 +4,23 @@ const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
 const OpenAI = require("openai");
+const path = require("path");
+require("dotenv").config(); // Add this
+
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    // Running on Render
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: process.env.FIREBASE_PROJECT_ID,
+    });
+  } else {
+    // Running locally (with firebase emulator or default credentials)
+    admin.initializeApp();
+  }
+}
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -11,6 +28,10 @@ const db = admin.firestore();
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
+
+// Serve static frontend files from dist directory
+const distPath = path.join(__dirname, '../dist');
+app.use(express.static(distPath));
 
 // OpenAI setup using .env file
 const openai = new OpenAI({
@@ -636,3 +657,12 @@ exports.weeklyMessSummary = onSchedule(
     return null;
   }
 );
+// Fallback to index.html for React routing (must be last route)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`✅ Backend running on port ${PORT}`);
+});

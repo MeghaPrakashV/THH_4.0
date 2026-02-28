@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "build": "vite build && npm --prefix functions install",
+    "start": "node functions/index.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
