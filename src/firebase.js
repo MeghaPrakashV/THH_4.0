@@ -4,12 +4,12 @@ import { getAuth } from "firebase/auth"; // Add this
 import { getStorage } from "firebase/storage"; // Add this for your calendar PDFs
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBMz3ci3jMNJqzyWGWlUtOSS93O-0Dv6VA",
-  authDomain: "hostel-survival-kit.firebaseapp.com",
-  projectId: "hostel-survival-kit",
-  storageBucket: "hostel-survival-kit.firebasestorage.app",
-  messagingSenderId: "453209875257",
-  appId: "1:453209875257:web:a7e0fd1f5eb17ef3847ee8"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
