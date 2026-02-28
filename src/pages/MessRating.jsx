@@ -1,108 +1,150 @@
-import { useState } from 'react';
-import GlassCard from '../components/GlassCard';
+
+import { useState, useEffect } from 'react';
+import { db, auth } from '../firebase';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, orderBy } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+
+const getRatingLabel = (avg) => {
+  if (avg <= 1.5) return '🔥 Michelin Disaster';
+  if (avg <= 2.5) return '😐 Survivable';
+  if (avg <= 3.5) return '👍 Mid But Edible';
+  if (avg <= 4.5) return '😊 Actually Decent';
+  return '🌟 Hostel Heaven';
+};
 
 const MessRating = () => {
+  const [user, setUser] = useState(null);
   const [currentRating, setCurrentRating] = useState(3);
-  const [ratings, setRatings] = useState([
-    { day: 'Mon', rating: 2.8 },
-    { day: 'Tue', rating: 3.1 },
-    { day: 'Wed', rating: 3.2 },
-    { day: 'Thu', rating: 2.9 },
-    { day: 'Fri', rating: 3.4 },
-    { day: 'Sat', rating: 4.1 },
-    { day: 'Sun', rating: 3.7 }
-  ]);
+  const [meal, setMeal] = useState('lunch');
+  const [comment, setComment] = useState('');
+  const [todayRatings, setTodayRatings] = useState([]);
+  const [weekRatings, setWeekRatings] = useState([]);
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const ratingLabels = [
-    '💀 Michelin Disaster',
-    '🥴 Survivable',
-    '😐 Decent',
-    '😀 Good',
-    '😋 Hostel Heaven'
-  ];
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, setUser);
+    return () => unsub();
+  }, []);
 
-  const ratingEmojis = ['💀', '🥴', '😐', '😀', '😋'];
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const q = query(collection(db, 'mess_ratings'), where('date', '==', today));
+    const unsub = onSnapshot(q, (snap) => {
+      setTodayRatings(snap.docs.map(d => d.data()));
+    });
+    return () => unsub();
+  }, []);
 
-  const submitRating = () => {
-    setRatings(prev => [...prev.slice(1), { day: 'Today', rating: currentRating }]);
-    // API call would go here
+  useEffect(() => {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const q = query(collection(db, 'mess_ratings'), where('date', '>=', weekAgo), orderBy('date', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setWeekRatings(snap.docs.map(d => d.data()));
+    });
+    return () => unsub();
+  }, []);
+
+  const submitRating = async () => {
+    if (!user) return alert('Please login first!');
+    setLoading(true);
+    const today = new Date().toISOString().split('T')[0];
+    await addDoc(collection(db, 'mess_ratings'), {
+      rating: currentRating,
+      meal,
+      comment,
+      date: today,
+      userId: user.uid,
+      createdAt: serverTimestamp(),
+    });
+    setSubmitted(true);
+    setLoading(false);
   };
 
-  const avgRating = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
+  const todayAvg = todayRatings.length > 0
+    ? todayRatings.reduce((a, b) => a + b.rating, 0) / todayRatings.length
+    : null;
+
+  const weekAvg = weekRatings.length > 0
+    ? weekRatings.reduce((a, b) => a + b.rating, 0) / weekRatings.length
+    : null;
+
+  const emojis = ['💀', '🥴', '😐', '😀', '😋'];
 
   return (
-    <div className="container mx-auto px-6 py-24 max-w-4xl">
-      <div className="text-center mb-24">
-        <h1 className="text-6xl md:text-7xl font-black gradient-text mb-6">
-          Mess Food <span className="bg-gradient-to-r from-orange-500 to-yellow-500 bg-clip-text text-transparent">Judgement</span>
-        </h1>
-        <p className="text-2xl text-gray-600 max-w-2xl mx-auto">Rate today's mess food. Track Michelin Disasters → Hostel Heaven. Weekly trends included.</p>
+    <div className="container mx-auto px-6 py-16 max-w-3xl">
+      <div className="text-center mb-12">
+        <h1 className="text-5xl font-black mb-4">Mess Food <span className="text-orange-500">Judgement</span> 🍲</h1>
+        <p className="text-gray-500 text-lg">Rate today's mess. Track Michelin Disasters → Hostel Heaven.</p>
       </div>
 
-      {/* Today's Rating */}
-      <GlassCard className="max-w-2xl mx-auto mb-16 text-center">
-        <div className="text-8xl mb-8 animate-bounce">{ratingEmojis[currentRating - 1]}</div>
-        <div className="text-6xl font-black text-gray-900 mb-4">{currentRating}/5</div>
-        <div className="text-2xl text-gray-600 mb-12">{ratingLabels[currentRating - 1]}</div>
-        
-        <div className="flex justify-center gap-4 mb-12">
-          {[1,2,3,4,5].map((star) => (
-            <button
-              key={star}
-              onClick={() => setCurrentRating(star)}
-              className={`text-5xl p-4 rounded-2xl transition-all transform hover:scale-110 ${
-                star <= currentRating 
-                  ? 'text-yellow-400' 
-                  : 'text-gray-300 hover:text-yellow-300'
-              }`}
-            >
-              ⭐
-            </button>
-          ))}
+      {/* Today's Stats */}
+      <div className="grid grid-cols-2 gap-6 mb-8">
+        <div className="bg-white rounded-2xl shadow-md p-6 text-center border border-gray-100">
+          <div className="text-4xl font-black text-orange-500 mb-2">{todayAvg ? todayAvg.toFixed(1) : '--'}/5</div>
+          <div className="text-gray-500 font-medium">Today's Average</div>
+          <div className="text-sm mt-1 font-bold">{todayAvg ? getRatingLabel(todayAvg) : 'No ratings yet'}</div>
         </div>
-        
-        <button
-          onClick={submitRating}
-          className="btn-primary px-16 py-6 text-2xl shadow-2xl"
-        >
-          Rate Today's Food 🍲
-        </button>
-      </GlassCard>
-
-      {/* Weekly Stats */}
-      <div className="grid md:grid-cols-2 gap-12 mb-24">
-        <GlassCard hoverGradient="from-green-500 to-teal-500">
-          <h3 className="text-3xl font-black text-gray-900 mb-8">Weekly Average</h3>
-          <div className="text-6xl font-black text-green-600 mb-6">{avgRating.toFixed(1)}/5</div>
-          <div className="text-2xl text-gray-600">{ratingLabels[Math.round(avgRating) - 1]}</div>
-        </GlassCard>
-
-        <GlassCard hoverGradient="from-purple-500 to-pink-500">
-          <h3 className="text-3xl font-black text-gray-900 mb-8">Today's Rank</h3>
-          <div className="text-6xl font-black text-purple-600 mb-6">#{ratings.length - ratings.findIndex(r => r.day === 'Today') || 0 + 1}</div>
-          <div className="text-2xl text-gray-600">Out of 7 days</div>
-        </GlassCard>
+        <div className="bg-white rounded-2xl shadow-md p-6 text-center border border-gray-100">
+          <div className="text-4xl font-black text-purple-500 mb-2">{weekAvg ? weekAvg.toFixed(1) : '--'}/5</div>
+          <div className="text-gray-500 font-medium">Weekly Average</div>
+          <div className="text-sm mt-1 font-bold">{weekAvg ? getRatingLabel(weekAvg) : 'No data'}</div>
+        </div>
       </div>
 
-      {/* Weekly Chart */}
-      <GlassCard>
-        <h3 className="text-3xl font-black text-gray-900 mb-12 text-center">This Week's Ratings 📊</h3>
-        <div className="grid md:grid-cols-7 gap-4">
-          {ratings.map((rating, idx) => (
-            <div key={idx} className="text-center group">
-              <div className="text-3xl mb-2">{ratingEmojis[Math.round(rating.rating) - 1]}</div>
-              <div className="font-bold text-lg">{rating.rating}</div>
-              <div className="text-sm text-gray-500">{rating.day}</div>
-              <div className="w-full bg-gray-200 rounded-full h-3 mt-2 group-hover:h-4 transition-all">
-                <div 
-                  className="bg-gradient-to-r from-orange-500 to-yellow-500 h-3 rounded-full transition-all group-hover:h-4"
-                  style={{ width: `${(rating.rating / 5) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          ))}
+      {/* Rating Form */}
+      {!submitted ? (
+        <div className="bg-white rounded-3xl shadow-xl p-8 mb-8 border border-gray-100">
+          <div className="text-center mb-8">
+            <div className="text-8xl mb-4">{emojis[currentRating - 1]}</div>
+            <div className="text-3xl font-black">{currentRating}/5</div>
+            <div className="text-gray-500 mt-1">{getRatingLabel(currentRating)}</div>
+          </div>
+
+          <div className="flex justify-center gap-3 mb-6">
+            {[1,2,3,4,5].map((star) => (
+              <button key={star} onClick={() => setCurrentRating(star)}
+                className={`text-5xl transition-all transform hover:scale-110 ${star <= currentRating ? 'opacity-100' : 'opacity-30'}`}>
+                ⭐
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-3 mb-4">
+            {['breakfast', 'lunch', 'dinner'].map((m) => (
+              <button key={m} onClick={() => setMeal(m)}
+                className={`flex-1 py-2 rounded-xl font-bold capitalize transition ${meal === m ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                {m}
+              </button>
+            ))}
+          </div>
+
+          <input
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Add a comment... (optional)"
+            className="w-full p-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-orange-400 mb-4"
+          />
+
+          <button onClick={submitRating} disabled={loading || !user}
+            className="w-full py-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-black text-xl rounded-2xl hover:opacity-90 transition disabled:opacity-50">
+            {loading ? 'Submitting...' : '🍲 Rate Today\'s Food'}
+          </button>
+          {!user && <p className="text-center text-red-400 mt-2 text-sm">Please login to rate!</p>}
         </div>
-      </GlassCard>
+      ) : (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center mb-8">
+          <div className="text-5xl mb-4">✅</div>
+          <h3 className="text-2xl font-black text-green-700">Rating Submitted!</h3>
+          <p className="text-green-600 mt-2">Thanks for your feedback. Come back tomorrow!</p>
+        </div>
+      )}
+
+      {/* Today's ratings count */}
+      <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
+        <h3 className="font-black text-xl mb-2">Today's Ratings 📊</h3>
+        <p className="text-gray-500">{todayRatings.length} people rated today's food</p>
+      </div>
     </div>
   );
 };

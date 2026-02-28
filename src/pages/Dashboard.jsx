@@ -1,69 +1,111 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { db } from '../firebase';
+import { collection, query, onSnapshot, where, orderBy } from 'firebase/firestore';
 import GlassCard from '../components/GlassCard';
 
 const Dashboard = () => {
-  const stats = [
-    { value: '23', label: 'Active Vents', icon: '💨', color: 'from-pink-500 to-red-500' },
-    { value: '3.2🥴', label: 'Mess Rating', icon: '🍲', color: 'from-orange-500 to-yellow-500' },
-    { value: '156', label: 'Survival Tips', icon: '💡', color: 'from-green-500 to-teal-500' },
-    { value: '7', label: 'Pending Complaints', icon: '⚠️', color: 'from-red-500 to-pink-500' }
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({ vents: 0, messRating: '--', tips: 0, complaints: 0 });
+
+  useEffect(() => {
+    // Live vent count
+    const ventUnsub = onSnapshot(collection(db, 'vents'), (snap) => {
+      setStats(prev => ({ ...prev, vents: snap.size }));
+    });
+
+    // Live tips count
+    const tipsUnsub = onSnapshot(collection(db, 'survival_tips'), (snap) => {
+      setStats(prev => ({ ...prev, tips: snap.size }));
+    });
+
+    // Live complaints count
+    const complaintsUnsub = onSnapshot(
+      query(collection(db, 'complaints'), where('status', '==', 'Pending')),
+      (snap) => setStats(prev => ({ ...prev, complaints: snap.size }))
+    );
+
+    // Today's mess rating
+    const today = new Date().toISOString().split('T')[0];
+    const messUnsub = onSnapshot(
+      query(collection(db, 'mess_ratings'), where('date', '==', today)),
+      (snap) => {
+        const ratings = snap.docs.map(d => d.data().rating);
+        const avg = ratings.length > 0
+          ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
+          : '--';
+        setStats(prev => ({ ...prev, messRating: avg }));
+      }
+    );
+
+    return () => { ventUnsub(); tipsUnsub(); complaintsUnsub(); messUnsub(); };
+  }, []);
+
+  const statCards = [
+    { value: stats.vents, label: 'Active Vents', icon: '💨', color: 'from-pink-500 to-red-500' },
+    { value: stats.messRating, label: 'Mess Rating', icon: '🍲', color: 'from-orange-500 to-yellow-500' },
+    { value: stats.tips, label: 'Survival Tips', icon: '💡', color: 'from-green-500 to-teal-500' },
+    { value: stats.complaints, label: 'Pending Complaints', icon: '⚠️', color: 'from-red-500 to-pink-500' }
+  ];
+
+  const featureCards = [
+    {
+      icon: '💨', title: 'Anonymous Vents',
+      desc: 'Share your struggles anonymously. Posts auto-delete in 24h.',
+      color: 'from-pink-500 to-red-500', link: '/vents', linkText: 'Vent Now'
+    },
+    {
+      icon: '📅', title: 'AI Calendar',
+      desc: 'Upload your academic calendar PDF. AI extracts all exam dates.',
+      color: 'from-blue-500 to-indigo-500', link: '/calendar', linkText: 'Add Calendar'
+    },
+    {
+      icon: '🍲', title: 'Mess Ratings',
+      desc: 'Rate daily mess food. Track Michelin Disasters → Hostel Heaven.',
+      color: 'from-orange-500 to-yellow-500', link: '/mess', linkText: 'Rate Today'
+    },
+    {
+      icon: '💡', title: 'Survival Tips',
+      desc: 'Tips from fellow hostel warriors. Upvote the best ones!',
+      color: 'from-green-500 to-teal-500', link: '/tips', linkText: 'View Tips'
+    },
+    {
+      icon: '📢', title: 'Complaints',
+      desc: 'Submit complaints to hostel management. Track their status.',
+      color: 'from-red-500 to-pink-500', link: '/complaints', linkText: 'Complain'
+    },
   ];
 
   return (
-    <div className="container mx-auto px-6 py-24 -mt-24">
+    <div className="container mx-auto px-6 py-16">
       {/* Stats Row */}
-      <div className="grid md:grid-cols-4 gap-8 mb-24">
-        {stats.map((stat, idx) => (
-          <GlassCard key={idx} hoverGradient={stat.color} className="group text-center">
-            <div className="text-5xl mb-6 group-hover:scale-110 transition-transform">{stat.icon}</div>
-            <div className="text-4xl font-black text-gray-900 mb-3">{stat.value}</div>
-            <div className="text-xl text-gray-600 font-medium">{stat.label}</div>
+      <div className="grid md:grid-cols-4 gap-6 mb-16">
+        {statCards.map((stat, idx) => (
+          <GlassCard key={idx} hoverGradient={stat.color} className="group text-center cursor-pointer">
+            <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">{stat.icon}</div>
+            <div className="text-4xl font-black text-gray-900 mb-2">{stat.value}</div>
+            <div className="text-lg text-gray-600 font-medium">{stat.label}</div>
           </GlassCard>
         ))}
       </div>
 
       {/* Feature Cards */}
-      <div className="grid lg:grid-cols-3 gap-8 mb-24">
-        <GlassCard hoverGradient="from-pink-500 to-orange-500" className="h-[320px]">
-          <div className="w-24 h-24 bg-gradient-to-br from-pink-500 to-orange-500 rounded-3xl flex items-center justify-center text-4xl mb-8 ml-4 -mr-4 shadow-2xl">
-            💨
-          </div>
-          <h3 className="text-4xl font-black text-gray-900 mb-6">Anonymous Vents</h3>
-          <p className="text-xl text-gray-600 mb-12 leading-relaxed">Share your struggles anonymously. Posts auto-delete in 24h. Perfect for those midnight breakdowns.</p>
-          <a href="/vents" className="inline-flex items-center gap-3 font-bold text-lg text-pink-500 hover:text-pink-600 group">
-            Vent Now →
-            <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
-          </a>
-        </GlassCard>
-
-        <GlassCard hoverGradient="from-blue-500 to-indigo-500" className="h-[320px]">
-          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-3xl flex items-center justify-center text-4xl mb-8 ml-4 -mr-4 shadow-2xl">
-            📅
-          </div>
-          <h3 className="text-4xl font-black text-gray-900 mb-6">AI Calendar</h3>
-          <p className="text-xl text-gray-600 mb-12 leading-relaxed">Upload your academic calendar PDF. AI extracts all exam dates, holidays & gives you live countdowns.</p>
-          <a href="/calendar" className="inline-flex items-center gap-3 font-bold text-lg text-blue-500 hover:text-blue-600 group">
-            Add Calendar →
-            <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
-          </a>
-        </GlassCard>
-
-        <GlassCard hoverGradient="from-orange-500 to-yellow-500" className="h-[320px]">
-          <div className="w-24 h-24 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-3xl flex items-center justify-center text-4xl mb-8 ml-4 -mr-4 shadow-2xl">
-            🍲
-          </div>
-          <h3 className="text-4xl font-black text-gray-900 mb-6">Mess Ratings</h3>
-          <p className="text-xl text-gray-600 mb-12 leading-relaxed">Rate daily mess food with emojis. Track Michelin Disasters → Hostel Heaven. Weekly trends included.</p>
-          <a href="/mess" className="inline-flex items-center gap-3 font-bold text-lg text-orange-500 hover:text-orange-600 group">
-            Rate Today →
-            <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-            </svg>
-          </a>
-        </GlassCard>
+      <div className="grid lg:grid-cols-3 gap-8">
+        {featureCards.map((card, idx) => (
+          <GlassCard key={idx} hoverGradient={card.color} className="cursor-pointer group"
+            onClick={() => navigate(card.link)}>
+            <div className={`w-20 h-20 bg-gradient-to-br ${card.color} rounded-3xl flex items-center justify-center text-4xl mb-6 shadow-xl`}>
+              {card.icon}
+            </div>
+            <h3 className="text-3xl font-black text-gray-900 mb-4">{card.title}</h3>
+            <p className="text-lg text-gray-600 mb-6 leading-relaxed">{card.desc}</p>
+            <button
+              onClick={(e) => { e.stopPropagation(); navigate(card.link); }}
+              className={`inline-flex items-center gap-2 font-bold text-lg bg-gradient-to-r ${card.color} bg-clip-text text-transparent group-hover:gap-4 transition-all`}>
+              {card.linkText} →
+            </button>
+          </GlassCard>
+        ))}
       </div>
     </div>
   );
